@@ -1,4 +1,4 @@
-name: Publish Docker image to Docker Hub
+name: Publish to Docker Hub (Diag)
 
 on:
   push:
@@ -8,24 +8,55 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    env:
+      IMAGE_NAME: nginx-2048
+      REGISTRY: docker.io
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      # 🔍 Verifica que los secrets EXISTEN (no imprime su valor)
+      - name: Validate secrets exist
+        run: |
+          test -n "${{ secrets.DOCKERHUB_USERNAME }}" || (echo "❌ DOCKERHUB_USERNAME is empty" && exit 1)
+          test -n "${{ secrets.DOCKERHUB_TOKEN }}"    || (echo "❌ DOCKERHUB_TOKEN is empty" && exit 1)
+          echo "✅ Secrets present"
 
+      # ♻️ Limpia sesiones previas por si acaso
+      - name: Docker logout (clean)
+        run: docker logout || true
+
+      # 🔐 Login a Docker Hub (con secrets)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
+          registry: ${{ env.REGISTRY }}
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+      # 🏷️ Define las tags completas con tu usuario (del secret)
+      - name: Compute tags
+        id: tags
+        run: |
+          echo "TAG1=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"  >> $GITHUB_OUTPUT
+          echo "TAG2=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:1.0"     >> $GITHUB_OUTPUT
+
+      # 🧱 Build & Push (usa login anterior)
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-2048:latest
-            ${{ secrets.DOCKERHUB_USERNAME }}/nginx-2048:1.0
+            ${{ steps.tags.outputs.TAG1 }}
+            ${{ steps.tags.outputs.TAG2 }}
+
+      # ✅ Verifica que la imagen existe localmente (no imprescindible, pero útil)
+      - name: List images
+        run: docker images | head -n 20
+
+      # 🔓 Cierra sesión (limpieza)
+      - name: Docker logout (end)
+        if: always()
+        run: docker logout || true
