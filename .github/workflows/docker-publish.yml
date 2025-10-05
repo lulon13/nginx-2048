@@ -1,62 +1,39 @@
-name: Publish to Docker Hub (Diag)
-
 on:
   push:
     branches: [ "main" ]
   workflow_dispatch:
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
-    env:
-      IMAGE_NAME: nginx-2048
-      REGISTRY: docker.io
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - name: Build image (no push)
+        run: docker build --no-cache -t test-nginx-2048 .
 
-      # 🔍 Verifica que los secrets EXISTEN (no imprime su valor)
-      - name: Validate secrets exist
+  push:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate token
         run: |
-          test -n "${{ secrets.DOCKERHUB_USERNAME }}" || (echo "❌ DOCKERHUB_USERNAME is empty" && exit 1)
-          test -n "${{ secrets.DOCKERHUB_TOKEN }}"    || (echo "❌ DOCKERHUB_TOKEN is empty" && exit 1)
-          echo "✅ Secrets present"
+          test -n "${{ secrets.DOCKERHUB_TOKEN }}" || (echo "❌ DOCKERHUB_TOKEN is empty" && exit 1)
+          echo "✅ Token present"
 
-      # ♻️ Limpia sesiones previas por si acaso
-      - name: Docker logout (clean)
-        run: docker logout || true
-
-      # 🔐 Login a Docker Hub (con secrets)
       - name: Login to Docker Hub
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          username: lulon13   # <-- pon tu usuario, minúsculas
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # 🏷️ Define las tags completas con tu usuario (del secret)
-      - name: Compute tags
-        id: tags
-        run: |
-          echo "TAG1=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:latest"  >> $GITHUB_OUTPUT
-          echo "TAG2=${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:1.0"     >> $GITHUB_OUTPUT
-
-      # 🧱 Build & Push (usa login anterior)
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
           context: .
           push: true
           tags: |
-            ${{ steps.tags.outputs.TAG1 }}
-            ${{ steps.tags.outputs.TAG2 }}
-
-      # ✅ Verifica que la imagen existe localmente (no imprescindible, pero útil)
-      - name: List images
-        run: docker images | head -n 20
-
-      # 🔓 Cierra sesión (limpieza)
-      - name: Docker logout (end)
-        if: always()
-        run: docker logout || true
+            lulon13/nginx-2048:latest
+            Lulon13/nginx-2048:1.0
+EOF
