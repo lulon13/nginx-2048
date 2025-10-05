@@ -36,4 +36,3 @@ jobs:
           tags: |
             lulon13/nginx-2048:latest
             Lulon13/nginx-2048:1.0
-EOF
